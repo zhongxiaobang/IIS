@@ -10,6 +10,7 @@ using System.Windows.Forms;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace IIS
 {
@@ -60,11 +61,40 @@ namespace IIS
                 IPEndPoint point = new IPEndPoint(ipAddress, port);
 
                 Socket serverSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
+                serverSocket.Bind(point);
+                serverSocket.Listen(10);
+                ThreadPool.QueueUserWorkItem(ProcessRequert, serverSocket);
             }
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message, "温馨提示");
+            }
+        }
+
+        private void ProcessRequert(object state)
+        {
+            Socket socket = state as Socket;
+            while (true)
+            {
+                Socket clientSocket = socket.Accept();
+
+                byte[] data = new byte[1024 * 1024 * 2];
+                int len = 0;
+                len = clientSocket.Receive(data);
+
+                string requestText = Encoding.Default.GetString(data, 0, len);
+
+                HttpContext context = new HttpContext(requestText);
+
+                HttpApplication application = new HttpApplication();
+
+                application.ProcessRequest(context);
+
+                clientSocket.Send(context.Response.GetResponseHeader());
+                clientSocket.Send(context.Response.Body);
+
+                clientSocket.Shutdown(SocketShutdown.Both);
+                clientSocket.Close();
             }
         }
     }
