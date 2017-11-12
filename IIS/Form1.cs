@@ -132,7 +132,7 @@ namespace IIS
             textBox2.BeginInvoke(new Action(() => 
             {
                 string str = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + ":" + msg + "\r\n";
-                textBox2.Text += str;
+                textBox2.AppendText(str);
                 Log.Info(str);
             }));
         }
