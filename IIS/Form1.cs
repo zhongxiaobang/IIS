@@ -11,14 +11,21 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.IO;
 
 namespace IIS
 {
     public partial class Form1 : Form
     {
-        public Form1()
+        private static Form1 form1 = new Form1();
+        private Form1()
         {
             InitializeComponent();
+        }
+
+        public static Form1 GetInstance()
+        {
+            return form1;
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -33,7 +40,7 @@ namespace IIS
             });
 
             comboBox1.SelectedIndex = 0;
-            
+
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -64,6 +71,9 @@ namespace IIS
                 serverSocket.Bind(point);
                 serverSocket.Listen(10);
                 ThreadPool.QueueUserWorkItem(ProcessRequert, serverSocket);
+
+                button1.Enabled = false;
+                Msg("服务启动成功,地址为：" + point.ToString());
             }
             catch (Exception ex)
             {
@@ -76,26 +86,60 @@ namespace IIS
             Socket socket = state as Socket;
             while (true)
             {
-                Socket clientSocket = socket.Accept();
+                Socket clientSocket = null;
+                try
+                {
+                    clientSocket = socket.Accept();
+                    byte[] data = new byte[1024 * 1024 * 2];
+                    int len = 0;
+                    len = clientSocket.Receive(data);
 
-                byte[] data = new byte[1024 * 1024 * 2];
-                int len = 0;
-                len = clientSocket.Receive(data);
+                    string requestText = Encoding.Default.GetString(data, 0, len);
 
-                string requestText = Encoding.Default.GetString(data, 0, len);
+                    HttpContext context = new HttpContext(requestText);
 
-                HttpContext context = new HttpContext(requestText);
+                    HttpApplication application = new HttpApplication();
+                    application.ProcessRequest(context);
+                    //发送响应报文头部
+                    clientSocket.Send(context.Response.GetResponseHeader());
+                    //发送身体
+                    clientSocket.Send(((MemoryStream)context.Response.OutPutStream).ToArray()); ;
 
-                HttpApplication application = new HttpApplication();
-
-                application.ProcessRequest(context);
-
-                clientSocket.Send(context.Response.GetResponseHeader());
-                clientSocket.Send(context.Response.Body);
-
-                clientSocket.Shutdown(SocketShutdown.Both);
-                clientSocket.Close();
+                    clientSocket.Shutdown(SocketShutdown.Both);
+                    clientSocket.Close();
+                }
+                catch (Exception ex)
+                {
+                    Msg(ex.Message);
+                }
+                finally
+                {
+                    try
+                    {
+                        clientSocket?.Close();
+                    }
+                    catch (Exception ex)
+                    {
+                        Msg(ex.Message);
+                    }
+                    
+                }
             }
+        }
+
+        public void Msg(string msg)
+        {
+            textBox2.BeginInvoke(new Action(() => 
+            {
+                string str = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + ":" + msg + "\r\n";
+                textBox2.Text += str;
+                Log.Info(str);
+            }));
+        }
+
+        private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            button1.Enabled = true;
         }
     }
 }
