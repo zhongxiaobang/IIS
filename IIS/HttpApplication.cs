@@ -24,6 +24,12 @@ namespace IIS
                     url = url.Remove(0, 1);
                 }
 
+                //默认index
+                if (url == "")
+                {
+                    url += "index.html";
+                }
+
                 string path = AppDomain.CurrentDomain.BaseDirectory + url;
 
                 if (!File.Exists(path))
